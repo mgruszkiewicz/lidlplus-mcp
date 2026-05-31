@@ -1,0 +1,50 @@
+# Assumes a Traefik instance already running on an external network
+# (commonly named `traefik` or `proxy`) with:
+#   - an HTTPS entrypoint called `websecure`
+#   - a cert resolver called `letsencrypt`
+# Adjust the labels below to match your own setup.
+
+services:
+  lidl-mcp:
+    build: .
+    image: lidl-mcp:latest
+    container_name: lidl-mcp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      LIDL_MCP_HOST: 0.0.0.0
+      LIDL_MCP_PORT: 8765
+      LIDL_MCP_PUBLIC_URL: https://${LIDL_MCP_HOSTNAME:?set LIDL_MCP_HOSTNAME in .env}
+      LIDL_SCHEDULE: "1"
+      LIDL_SCHEDULE_TZ: Europe/Warsaw
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./data:/app/data
+    # networks:
+    #   - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: traefik
+
+      # Router: HTTPS only, hostname from env.
+      traefik.http.routers.lidl-mcp.rule: "Host(`${LIDL_MCP_HOSTNAME}`)"
+      traefik.http.routers.lidl-mcp.entrypoints: websecure
+      traefik.http.routers.lidl-mcp.tls: "true"
+      traefik.http.routers.lidl-mcp.tls.certresolver: letsencrypt
+      traefik.http.routers.lidl-mcp.service: lidl-mcp
+
+      # Service: where Traefik forwards to inside the container.
+      traefik.http.services.lidl-mcp.loadbalancer.server.port: "8765"
+
+      # MCP uses long-lived SSE-style responses — bump read timeout so
+      # Traefik doesn't kill in-flight tool calls.
+      traefik.http.services.lidl-mcp.loadbalancer.responseforwarding.flushinterval: 100ms
+
+      # Health: FastMCP returns 405 to bare GETs on /mcp, which is fine.
+      # If you want active healthchecks, expose a /healthz tool first.
+
+# networks:
+#   traefik:
+#     external: true

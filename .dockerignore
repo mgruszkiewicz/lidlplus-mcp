@@ -1,0 +1,10 @@
+.venv/
+.git/
+.gitignore
+.env
+.env.example
+.playwright-mcp/
+data/
+lidlplusemailbridge.egg-info/
+__pycache__/
+*.pyc
