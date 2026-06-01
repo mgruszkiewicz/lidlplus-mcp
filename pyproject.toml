@@ -15,9 +15,17 @@ lidl-poll = "lidlbridge.poll:main"
 lidl-coupons = "lidlbridge.coupons:main"
 lidl-mcp = "lidlbridge.mcp_server:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["lidlbridge*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -12,6 +12,8 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from . import coupons as coupons_mod
+from . import poll as poll_mod
 from .config import load
 from .scheduler import maybe_start_scheduler
 
@@ -298,6 +300,66 @@ def list_coupons(active_only: bool = True) -> dict[str, Any]:
         "count": len(out),
         "coupons": out,
     }
+
+
+@mcp.tool
+def refresh_data(target: str = "all") -> dict[str, Any]:
+    """Force an immediate download of fresh data, outside the schedule.
+
+    Use this when you need the very latest receipts or coupons right now
+    rather than waiting for the background scheduler. It contacts Lidl Plus,
+    writes any new data to disk, then returns the refreshed view so you can
+    act on it in the same turn.
+
+    Args:
+        target: What to refresh — "receipts", "coupons", or "all" (default).
+
+    Returns {refreshed: [...], receipts?: <list_receipts result>,
+    coupons?: <list_coupons result>, errors: {receipts?, coupons?}}.
+    The `errors` map is non-empty only when a download failed; the
+    corresponding data is then served from the last successful snapshot.
+    """
+    target = (target or "all").strip().lower()
+    if target not in {"all", "receipts", "coupons"}:
+        raise ValueError(
+            f"Bad target {target!r}; use 'receipts', 'coupons', or 'all'"
+        )
+
+    cfg = _cfg()
+    do_receipts = target in {"all", "receipts"}
+    do_coupons = target in {"all", "coupons"}
+
+    refreshed: list[str] = []
+    errors: dict[str, str] = {}
+
+    if do_receipts:
+        try:
+            rc = poll_mod.poll(cfg)
+            if rc == 0:
+                refreshed.append("receipts")
+            else:
+                errors["receipts"] = f"poll exited with code {rc}"
+        except Exception as exc:  # noqa: BLE001 - surface to caller, keep serving cached data
+            log.exception("refresh_data: receipts poll crashed")
+            errors["receipts"] = str(exc)
+
+    if do_coupons:
+        try:
+            rc = coupons_mod.fetch(cfg)
+            if rc == 0:
+                refreshed.append("coupons")
+            else:
+                errors["coupons"] = f"coupons fetch exited with code {rc}"
+        except Exception as exc:  # noqa: BLE001 - surface to caller, keep serving cached data
+            log.exception("refresh_data: coupons fetch crashed")
+            errors["coupons"] = str(exc)
+
+    result: dict[str, Any] = {"refreshed": refreshed, "errors": errors}
+    if do_receipts:
+        result["receipts"] = list_receipts()
+    if do_coupons:
+        result["coupons"] = list_coupons()
+    return result
 
 
 def main() -> int:
