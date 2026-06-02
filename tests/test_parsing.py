@@ -128,3 +128,22 @@ def test_receipt_summary_tolerates_missing_store_and_html():
     assert s["store"] is None
     assert s["store_id"] is None
     assert s["item_count"] == 0
+
+
+# --- auth._extract_code --------------------------------------------------
+
+from lidlbridge import auth as a
+
+
+@pytest.mark.parametrize(
+    "pasted,expected",
+    [
+        ("com.lidlplus.app://callback?code=ABC123&scope=openid profile", "ABC123"),
+        ("com.lidlplus.app://callback?code=XYZ", "XYZ"),
+        ("  com.lidlplus.app://callback?code=TRIM&state=1  ", "TRIM"),
+        ("https://accounts.lidl.com/connect/authorize/callback?foo=1&code=DEEP", "DEEP"),
+        ("BARECODE", "BARECODE"),
+    ],
+)
+def test_extract_code(pasted, expected):
+    assert a._extract_code(pasted) == expected

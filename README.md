@@ -2,11 +2,10 @@
 
 Minimal scaffold around [`zsobix/lidlplus-api`](https://github.com/zsobix/lidlplus-api)
 that polls Lidl Plus for new receipts (and coupons) and drops each one as a
-JSON files.
+JSON files.  
+![screenshot showcasing the usage of mcp in Claude](https://i.issei.space/a0z8Kj3G.jpg)
 
-> Unofficial. Reverse-engineered. Can break whenever Lidl ships a redesign — the
-> upstream library was already out of date when this repo was set up; see
-> [Login flow](#login-flow-may-2026) below.
+Althrought it has a `mcp` in it's name, it doesn't needs to be used as MCP for a LLM - you can also use it standalone with manual polling.
 
 ## Layout
 
@@ -21,15 +20,15 @@ JSON files.
 I recommend using astral `uv` package manager for the ease of install
 ```bash
 uv sync
-playwright install chromium
+uv run playwright install chromium
 
 cp .env.example .env
-# edit .env: confirm LIDL_COUNTRY / LIDL_LANGUAGE (credentials are typed by
-#            hand in the browser, not stored here)
+# edit .env: confirm LIDL_COUNTRY / LIDL_LANGUAGE
 # optional: LIDL_STORE_ID=PL1776   # pin a specific store for `lidl-coupons`
 ```
+After initial authentication, you can also start the mcp server/script in the docker container instead.
 
-## First-time login
+### 1. First-time login
 
 ```bash
 uv run lidl-auth
@@ -39,29 +38,26 @@ A real Chrome window opens (channel="chrome", persistent profile under
 `data/chrome-profile/` so cookies and device-trust survive between runs).
 **You sign in by hand** — type your email and password and clear any
 "Przekroczyliśmy nasze możliwości" / captcha / 2FA challenge directly in the
-visible browser. We never touch the credential fields (scripted entry trips
-Lidl's bot protection), so nothing needs to be stored in `.env`.
+visible browser.
+
+**If this step is not working due to the bot protection, you will need to get the auth token manually.**
+1. Run the `uv run lidl-auth --manual`
+2. Copy the provided URL and open it in Chrome (for some reason Firefox doesn't allow you to navigate to website which have a invalid handler)
+3. Open Network Console in Chrome
+4. Login to your Lidl Plus account as normal
+5. After clicking on "Next" on password prompt, the button should change to disabled and in network console you should see a blocked request (due to missing handler) starting with `callback?code=xyz`. Click on it with a right mouse button and copy the URL.
+![screenshot showing up the open chrome network console with preview of callback url](https://i.issei.space/l4TbMREu.jpg)  
+6. Paste the URL into the prompt of the script and press enter, this should authenticate you.
+
 
 Once you finish logging in, Lidl redirects through its OAuth callback;
 `auth.py` is watching for that redirect, grabs the authorization code, and
 exchanges it for a refresh token — which lands in `data/refresh_token`
 (chmod 600). It waits up to 10 minutes for you to complete the login.
 
-If Chrome isn't installed, edit `lidlbridge/auth.py` and drop the
-`channel="chrome"` arg to fall back to bundled Chromium (more likely to trip
-bot detection).
+### 2. Polling receipts
 
-### How the token is captured
-
-We don't automate the form, so there are no login selectors to maintain. The
-only integration point is the OAuth redirect: `_parse_code` waits for the
-`https://accounts.lidl.com/connect/authorize/...` callback and reads the
-`code=` parameter from its `location` header, then `_authorization_code`
-swaps that code (plus the PKCE verifier) for the refresh token. As long as
-Lidl keeps that OAuth callback shape, redesigns of the login form don't affect
-us.
-
-## Polling receipts
+To poll existing reciepts from your account, you can run
 
 ```bash
 uv run lidl-poll
@@ -78,7 +74,8 @@ Notes on the underlying endpoint:
 - The upstream method uses American spelling (`only_favorite=False`); the
   British spelling will `TypeError`.
 
-## Fetching coupons
+### 3. Fetching coupons
+If you want to get a available coupons for your region/shop, you can the `lidl-coupons` command
 
 ```bash
 uv run lidl-coupons
@@ -95,7 +92,7 @@ Store resolution order:
 To pin your home store, grab the `store.id` from any `data/receipts/*.json` and
 set it as `LIDL_STORE_ID`.
 
-## Cron example
+## Example of polling reciepts in cron
 
 ```cron
 */30 * * * * cd /home/user/lidlplus-mcp && uv run lidl-poll >> data/poll.log 2>&1
@@ -177,3 +174,7 @@ container.
 
 - Agent ingestion: point your agent watcher at `data/receipts/`.
 - Token-refresh monitoring: alert when `lidl-poll` exits non-zero so you know to re-auth.
+
+
+## Notes
+* This project is unofficial and is not associated with Lidl. It is using a package which reverse engineered the API, so it can break anytime or might get your account banned (but i didn't hear about such a cases for personal usage)
