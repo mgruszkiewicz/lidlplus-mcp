@@ -110,6 +110,13 @@ uv run lidl-mcp   # serves http://127.0.0.1:8765/mcp
 Override host/port with `LIDL_MCP_HOST` / `LIDL_MCP_PORT`. Reads from
 `data/receipts/` and `data/coupons/` only — does not call the Lidl API.
 
+Set `LIDL_MCP_TRANSPORT=stdio` to run over stdio instead of HTTP (handy for
+local clients that launch the server as a subprocess). `http` is the default.
+
+```bash
+LIDL_MCP_TRANSPORT=stdio uv run lidl-mcp
+```
+
 Tools exposed:
 - `list_receipts(start_date?, end_date?, limit=50)` — minimal fields per
   receipt (id, date, total, store, item_count), newest first.
@@ -119,7 +126,13 @@ Tools exposed:
 
 Point Claude at it with:
 ```bash
+# HTTP transport (server already running)
 claude mcp add --transport http lidlbridge http://127.0.0.1:8765/mcp
+
+# stdio transport (Claude launches the server itself)
+claude mcp add lidlbridge \
+  --env LIDL_MCP_TRANSPORT=stdio \
+  -- uv run --directory /path/to/lidlplus-mcp lidl-mcp
 ```
 
 ### Exposing it remotely (Authelia OIDC)

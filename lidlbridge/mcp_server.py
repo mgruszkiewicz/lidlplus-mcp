@@ -364,14 +364,24 @@ def refresh_data(target: str = "all") -> dict[str, Any]:
 
 def main() -> int:
     level = os.environ.get("LIDL_LOG_LEVEL", "INFO").upper()
+    # Log to stderr (basicConfig's default). Critical for stdio transport,
+    # where stdout carries the JSON-RPC stream and must not be polluted.
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    host = os.environ.get("LIDL_MCP_HOST", "127.0.0.1")
-    port = int(os.environ.get("LIDL_MCP_PORT", "8765"))
+    transport = os.environ.get("LIDL_MCP_TRANSPORT", "http").strip().lower()
+    if transport not in {"http", "stdio"}:
+        raise ValueError(
+            f"Bad LIDL_MCP_TRANSPORT {transport!r}; use 'http' or 'stdio'"
+        )
     maybe_start_scheduler()
-    mcp.run(transport="http", host=host, port=port)
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+    else:
+        host = os.environ.get("LIDL_MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("LIDL_MCP_PORT", "8765"))
+        mcp.run(transport="http", host=host, port=port)
     return 0
 
 
