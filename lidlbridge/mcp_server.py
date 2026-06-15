@@ -73,8 +73,8 @@ def _parse_receipt_date(raw: str | None) -> datetime | None:
 
 def _load_receipt(path: Path) -> dict[str, Any] | None:
     try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return None
 
 
@@ -197,6 +197,10 @@ def list_receipts(
     dropped_after = 0
     dropped_no_date = 0
     for path in receipts_dir.glob("*.json"):
+        if path.name.startswith("."):
+            # Skip hidden/metadata files (e.g. macOS AppleDouble "._*"
+            # companions that get copied alongside real receipts).
+            continue
         seen += 1
         data = _load_receipt(path)
         if not data:

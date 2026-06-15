@@ -73,6 +73,18 @@ def test_list_receipts_skips_corrupt_json(receipts_dir: Path):
     assert result["receipts"][0]["id"] == "good"
 
 
+def test_list_receipts_skips_macos_appledouble_files(receipts_dir: Path):
+    # macOS scatters binary "._<name>" AppleDouble companions next to real
+    # files when copying to non-HFS volumes; they must not crash listing.
+    write_receipt(receipts_dir, "good", date="2026-02-10T10:00:00")
+    (receipts_dir / "._24001944852026010599684.json").write_bytes(
+        b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X\x00\x00\xa3\x00\x00"
+    )
+    result = m.list_receipts()
+    assert result["count"] == 1
+    assert result["receipts"][0]["id"] == "good"
+
+
 # --- get_receipt ----------------------------------------------------------
 
 def test_get_receipt_returns_items_and_coupons(receipts_dir: Path):
